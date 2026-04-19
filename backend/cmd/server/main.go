@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"os"
 
-	apphttp "studylog/backend/internal/http"
+	// apphttp "studylog/backend/internal/http"
+	"studylog/backend/internal/handler" // ← エイリアス不要になった
 )
 
 func main() {
@@ -14,7 +15,7 @@ func main() {
 		addr = "8080"
 	}
 
-	router := apphttp.NewRouter()
+	router := handler.NewRouter()
 	log.Printf("server started on :%s", addr)
 	if err := http.ListenAndServe(":"+addr, router); err != nil {
 		log.Fatalf("server failed: %v", err)

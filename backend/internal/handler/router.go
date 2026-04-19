@@ -1,4 +1,5 @@
-package http
+// package http
+package handler
 
 import (
 	"encoding/json"
