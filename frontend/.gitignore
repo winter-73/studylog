@@ -1,3 +1,15 @@
+# 依存パッケージ
 node_modules/
+
+# ビルド成果物
 dist/
 *.tsbuildinfo
+
+# TypeScript のコンパイル生成物（ソースの .ts が正）
+vite.config.js
+vite.config.d.ts
+tailwind.config.js
+tailwind.config.d.ts
+
+# macOS
+.DS_Store

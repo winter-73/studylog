@@ -6,13 +6,14 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // ==========================================
 // HTTPハンドラー（APIの受付窓口）
 // ==========================================
 
-// Entries は /api/v1/entries へのリクエストをメソッドで振り分ける。
 func Entries(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -29,21 +30,22 @@ func Entries(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// listEntries は、保存されている学習記録の一覧を取得してJSONで返す処理
 func listEntries(w http.ResponseWriter, _ *http.Request) {
-	items := entryStore.list() // entry_store.go の関数を呼び出し
+	items := entryStore.list()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"items": items,
 	})
 }
 
-// createEntry は、クライアントから送られたデータをもとに新しい学習記録を作成する処理
 func createEntry(w http.ResponseWriter, r *http.Request) {
+	// 悪意あるクライアントが巨大なボディを送りつけてメモリを枯渇させるのを防ぐ
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MB
+
 	var req createEntryRequest
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&req); err != nil {
-		writeValidationError(w, fmt.Sprintf("invalid request body: %v", err))
+		writeValidationError(w, "invalid request body")
 		return
 	}
 
@@ -54,7 +56,8 @@ func createEntry(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	res := createEntryResponse{
-		ID:              fmt.Sprintf("entry_%d", time.Now().UnixNano()),
+		// time.Now().UnixNano() は高負荷時に衝突する可能性があるため UUID を使用
+		ID:              uuid.New().String(),
 		Date:            req.Date,
 		DurationMinutes: req.DurationMinutes,
 		Category:        strings.TrimSpace(req.Category),
@@ -64,8 +67,7 @@ func createEntry(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:       now,
 	}
 
-	entryStore.add(res) // entry_store.go の関数を呼び出して保存
-
+	entryStore.add(res)
 	writeJSON(w, http.StatusCreated, res)
 }
 
@@ -92,7 +94,6 @@ type createEntryResponse struct {
 	UpdatedAt       string   `json:"updatedAt"`
 }
 
-// errorResponse はAPIエラーレスポンスの統一構造。
 type errorResponse struct {
 	Error errorBody `json:"error"`
 }
@@ -103,26 +104,22 @@ type errorBody struct {
 }
 
 // ==========================================
-// バリデーション（入力チェック）関数
+// バリデーション
 // ==========================================
 
 func validateCreateEntryRequest(req createEntryRequest) error {
 	if _, err := time.Parse("2006-01-02", req.Date); err != nil {
 		return fmt.Errorf("date must be in YYYY-MM-DD format")
 	}
-
 	if req.DurationMinutes <= 0 {
 		return fmt.Errorf("durationMinutes must be greater than 0")
 	}
-
 	if strings.TrimSpace(req.Category) == "" {
 		return fmt.Errorf("category is required")
 	}
-
 	if len(req.Note) > 500 {
 		return fmt.Errorf("note must be 500 characters or less")
 	}
-
 	allowed := map[string]struct{}{
 		"Understanding": {},
 		"Building":      {},
@@ -133,12 +130,11 @@ func validateCreateEntryRequest(req createEntryRequest) error {
 			return fmt.Errorf("growthTags contains unsupported tag: %s", tag)
 		}
 	}
-
 	return nil
 }
 
 // ==========================================
-// ユーティリティ（便利関数）
+// ユーティリティ
 // ==========================================
 
 func writeValidationError(w http.ResponseWriter, message string) {

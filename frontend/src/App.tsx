@@ -1,10 +1,9 @@
 import { useMemo } from "react";
 import { GardenView } from "./components/GardenView";
-import { StudyEntryForm } from "./components/StudyEntryForm";
+import { StudyEntryForm } from "./features/study-entry/components/StudyEntryForm";
 import { useListEntries } from "./features/study-entry/hooks/useListEntries";
 import type { StudyEntry } from "./features/study-entry/types";
 
-// APIから取得したエントリ一覧をもとに「今日を含む連続学習日数」を計算する
 function calcStreak(entries: StudyEntry[]): number {
   if (entries.length === 0) return 0;
   const dates = new Set(entries.map((e) => e.date));
@@ -24,8 +23,7 @@ function calcStreak(entries: StudyEntry[]): number {
 }
 
 export default function App() {
-  const { entries, refetch } = useListEntries();
-  // entries が変わったときだけ再計算（毎レンダーで走らせない）
+  const { entries, isLoading, error: listError, refetch } = useListEntries();
   const streakDays = useMemo(() => calcStreak(entries), [entries]);
 
   return (
@@ -43,12 +41,32 @@ export default function App() {
 
         <section className="rounded-2xl border border-soil/20 bg-white/60 p-5 shadow-soft">
           <h2 className="font-heading text-2xl">今日の記録</h2>
-          {/* フォームの責務は StudyEntryForm に完全委譲。記録成功時に refetch() で庭を更新 */}
           <StudyEntryForm onSuccess={refetch} />
         </section>
 
         <section className="aspect-[4/3] overflow-hidden rounded-2xl border border-soil/20 bg-white/30 shadow-soft lg:aspect-auto">
-          <GardenView streakDays={streakDays} />
+          {/* データ取得中 */}
+          {isLoading && (
+            <div className="flex h-full items-center justify-center">
+              <p className="text-sm text-soil/50">読み込み中...</p>
+            </div>
+          )}
+
+          {/* 取得失敗 */}
+          {!isLoading && listError && (
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-6">
+              <p className="text-sm text-red-500">{listError}</p>
+              <button
+                onClick={refetch}
+                className="rounded-lg border border-soil/30 px-4 py-2 text-sm text-ink hover:bg-mist/60"
+              >
+                再読み込み
+              </button>
+            </div>
+          )}
+
+          {/* 正常表示 */}
+          {!isLoading && !listError && <GardenView streakDays={streakDays} />}
         </section>
       </main>
     </div>
