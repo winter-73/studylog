@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useCreateEntry } from "../features/study-entry/hooks/useCreateEntry";
-import type { GrowthTag, StudyEntryInput } from "../features/study-entry/types";
+import { useCreateEntry } from "../hooks/useCreateEntry";
+import type { GrowthTag, StudyEntryInput } from "../types";
 
 const GROWTH_TAGS: GrowthTag[] = ["Understanding", "Building", "Output"];
 

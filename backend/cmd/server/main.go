@@ -1,23 +1,50 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	// apphttp "studylog/backend/internal/http"
-	"studylog/backend/internal/handler" // ← エイリアス不要になった
+	"studylog/backend/internal/handler"
 )
 
 func main() {
-	addr := os.Getenv("PORT")
-	if addr == "" {
-		addr = "8080"
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
 
-	router := handler.NewRouter()
-	log.Printf("server started on :%s", addr)
-	if err := http.ListenAndServe(":"+addr, router); err != nil {
-		log.Fatalf("server failed: %v", err)
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: handler.NewRouter(),
 	}
+
+	// サーバーを別 goroutine で起動し、メインスレッドをシグナル待ちに使う
+	go func() {
+		log.Printf("server started on :%s", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("server failed: %v", err)
+		}
+	}()
+
+	// Ctrl+C（SIGINT）や本番環境のデプロイ停止（SIGTERM）を待ち受ける
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("shutting down server...")
+
+	// 最大 10 秒待って処理中のリクエストを完了させてから停止
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("server forced to shutdown: %v", err)
+	}
+
+	log.Println("server stopped")
 }
