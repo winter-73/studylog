@@ -14,11 +14,10 @@ export function createEntry(payload: StudyEntryInput) {
   });
 }
 
-// from / to は Step 3 でバックエンドに実装予定のため現時点では optional
-export function listEntries(from?: string, to?: string) {
+// year は任意。未指定なら全件、指定時はその年だけ取得する
+export function listEntries(year?: number) {
   const params = new URLSearchParams();
-  if (from) params.set("from", from);
-  if (to) params.set("to", to);
+  if (typeof year === "number") params.set("year", String(year));
   const query = params.toString();
   const url = query ? `${API_BASE}/entries?${query}` : `${API_BASE}/entries`;
   return httpRequest<ListEntriesResponse>(url);

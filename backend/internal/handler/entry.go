@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,8 +31,19 @@ func Entries(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func listEntries(w http.ResponseWriter, _ *http.Request) {
+func listEntries(w http.ResponseWriter, r *http.Request) {
+	yearParam := r.URL.Query().Get("year")
 	items := entryStore.list()
+
+	if yearParam != "" {
+		year, err := strconv.Atoi(yearParam)
+		if err != nil || year < 1000 || year > 9999 {
+			writeValidationError(w, "year must be a 4-digit number")
+			return
+		}
+		items = entryStore.listByYear(year)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"items": items,
 	})
