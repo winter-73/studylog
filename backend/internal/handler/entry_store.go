@@ -1,6 +1,10 @@
 package handler
 
-import "sync"
+import (
+	"fmt"
+	"strings"
+	"sync"
+)
 
 // entryStore は、アプリケーション全体で共有される「仮のデータベース」の実体（インスタンス）です。
 // APIの処理（entry.goなど）からは、この変数を通してデータの保存や取得を行います。
@@ -47,5 +51,21 @@ func (s *inMemoryEntryStore) list() []createEntryResponse {
 	copy(out, s.items)
 
 	// コピーした安全なリストを呼び出し元に返します。
+	return out
+}
+
+// listByYear は、指定した年（YYYY）に一致する学習記録だけを返します。
+func (s *inMemoryEntryStore) listByYear(year int) []createEntryResponse {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	prefix := fmt.Sprintf("%04d-", year)
+	out := make([]createEntryResponse, 0, len(s.items))
+	for _, item := range s.items {
+		if strings.HasPrefix(item.Date, prefix) {
+			out = append(out, item)
+		}
+	}
+
 	return out
 }
