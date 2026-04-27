@@ -10,6 +10,7 @@ func NewRouter() http.Handler { // Webサーバーがリクエストを処理す
 	mux := http.NewServeMux()                  //「ルーター」のインスタンス作成。URLパターンとそれに対応する処理を登録するための入れ物
 	mux.HandleFunc("/health", Health)          ///health パスへのリクエストを受け取ったとき、Health という名前の関数を実行するように登録
 	mux.HandleFunc("/api/v1/entries", Entries) ///api/v1/entries パスへのリクエストを受け取ったとき、Entries という名前の関数を実行するように登録
+	mux.HandleFunc("/api/v1/summary/weekly", WeeklySummary)
 
 	// 最後に、完成したルーター(mux)を「門番(corsMiddleware)」で包んでから返します。
 	// これにより、すべての通信がまず門番のチェックを受けるようになります。
