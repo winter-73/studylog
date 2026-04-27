@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -29,6 +30,75 @@ func Entries(w http.ResponseWriter, r *http.Request) {
 			},
 		})
 	}
+}
+
+func WeeklySummary(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, errorResponse{
+			Error: errorBody{
+				Code:    "METHOD_NOT_ALLOWED",
+				Message: "method not allowed",
+			},
+		})
+		return
+	}
+
+	refDate := time.Now().UTC()
+	dateParam := r.URL.Query().Get("date")
+	if dateParam != "" {
+		parsed, err := time.Parse("2006-01-02", dateParam)
+		if err != nil {
+			writeValidationError(w, "date must be in YYYY-MM-DD format")
+			return
+		}
+		refDate = parsed
+	}
+
+	weekStart := startOfWeek(refDate)
+	weekEnd := weekStart.AddDate(0, 0, 7)
+
+	items := entryStore.list()
+	totalMinutes := 0
+	entriesCount := 0
+	tagMinutes := map[string]int{}
+
+	for _, item := range items {
+		entryDate, err := time.Parse("2006-01-02", item.Date)
+		if err != nil {
+			continue
+		}
+		if entryDate.Before(weekStart) || !entryDate.Before(weekEnd) {
+			continue
+		}
+
+		totalMinutes += item.DurationMinutes
+		entriesCount++
+		for _, tag := range item.GrowthTags {
+			tagMinutes[tag] += item.DurationMinutes
+		}
+	}
+
+	topGrowthTags := make([]summaryTagMinutes, 0, len(tagMinutes))
+	for tag, minutes := range tagMinutes {
+		topGrowthTags = append(topGrowthTags, summaryTagMinutes{Tag: tag, Minutes: minutes})
+	}
+
+	sort.Slice(topGrowthTags, func(i, j int) bool {
+		if topGrowthTags[i].Minutes == topGrowthTags[j].Minutes {
+			return topGrowthTags[i].Tag < topGrowthTags[j].Tag
+		}
+		return topGrowthTags[i].Minutes > topGrowthTags[j].Minutes
+	})
+	if len(topGrowthTags) > 3 {
+		topGrowthTags = topGrowthTags[:3]
+	}
+
+	writeJSON(w, http.StatusOK, weeklySummaryResponse{
+		WeekStart:     weekStart.Format("2006-01-02"),
+		TotalMinutes:  totalMinutes,
+		EntriesCount:  entriesCount,
+		TopGrowthTags: topGrowthTags,
+	})
 }
 
 func listEntries(w http.ResponseWriter, r *http.Request) {
@@ -115,6 +185,18 @@ type errorBody struct {
 	Message string `json:"message"`
 }
 
+type weeklySummaryResponse struct {
+	WeekStart     string              `json:"weekStart"`
+	TotalMinutes  int                 `json:"totalMinutes"`
+	EntriesCount  int                 `json:"entriesCount"`
+	TopGrowthTags []summaryTagMinutes `json:"topGrowthTags"`
+}
+
+type summaryTagMinutes struct {
+	Tag     string `json:"tag"`
+	Minutes int    `json:"minutes"`
+}
+
 // ==========================================
 // バリデーション
 // ==========================================
@@ -156,4 +238,15 @@ func writeValidationError(w http.ResponseWriter, message string) {
 			Message: message,
 		},
 	})
+}
+
+func startOfWeek(t time.Time) time.Time {
+	t = t.UTC()
+	weekday := int(t.Weekday())
+	if weekday == 0 {
+		weekday = 7
+	}
+	daysFromMonday := weekday - 1
+	start := t.AddDate(0, 0, -daysFromMonday)
+	return time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
 }
